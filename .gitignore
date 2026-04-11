@@ -1,0 +1,19 @@
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+build/
+dist/
+
+# Runtime state — must never be committed
+state/
+logs/
+*.backup
+
+# Editor scratch
+.vscode/
+.idea/
+*.swp
