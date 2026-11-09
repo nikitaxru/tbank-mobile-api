@@ -126,6 +126,42 @@ def _external_account_fixture() -> dict[str, object]:
     }
 
 
+def _credit_account_fixture() -> dict[str, object]:
+    return {
+        "id": "1111111111",
+        "name": "Credit",
+        "accountType": "Credit",
+        "currency": {"code": 643, "name": "RUB", "strCode": "643"},
+        "moneyAmount": {
+            "value": 0.0,
+            "currency": {"code": 643, "name": "RUB", "strCode": "643"},
+        },
+        "creditLimit": {
+            "value": 150000.0,
+            "currency": {"code": 643, "name": "RUB", "strCode": "643"},
+        },
+        "debtAmount": {
+            "value": 12500.0,
+            "currency": {"code": 643, "name": "RUB", "strCode": "643"},
+        },
+        "currentMinimalPayment": {
+            "value": 2500.0,
+            "currency": {"code": 643, "name": "RUB", "strCode": "643"},
+        },
+        "pastDueDebt": {
+            "value": 0.0,
+            "currency": {"code": 643, "name": "RUB", "strCode": "643"},
+        },
+        "gracePeriodLength": 50,
+        "lastStatementDate": {"milliseconds": 1775688320000},
+        "nextStatementDate": {"milliseconds": 1778280320000},
+        "creationDate": {"milliseconds": 1618444800000},
+        "hidden": False,
+        "sharedByMeFlag": False,
+        "cards": [],
+    }
+
+
 class TestAccount:
     def test_parse_current_account(self) -> None:
         acc = Account.from_api(_current_account_fixture())
@@ -179,6 +215,127 @@ class TestAccount:
         acc = Account.from_api(data)
         assert acc.raw["futureField"] == {"some": "value"}
         assert acc.raw["accountType"] == "Current"
+
+    def test_parse_credit_account(self) -> None:
+        acc = Account.from_api(_credit_account_fixture())
+        assert acc.type == AccountType.CREDIT
+        assert acc.type == "Credit"
+        assert acc.credit_limit is not None
+        assert acc.credit_limit.amount == Decimal("150000.0")
+
+    def test_parse_credit_debt_fields(self) -> None:
+        acc = Account.from_api(_credit_account_fixture())
+        assert acc.debt is not None
+        assert acc.debt.amount == Decimal("12500.0")
+        assert acc.debt.currency.name == "RUB"
+        assert acc.minimum_payment is not None
+        assert acc.minimum_payment.amount == Decimal("2500.0")
+        assert acc.past_due_debt is not None
+        assert acc.past_due_debt.amount == Decimal("0")
+        assert acc.grace_period_days == 50
+        assert acc.last_statement_at == dt.datetime(2026, 4, 8, 22, 45, 20, tzinfo=dt.UTC)
+        assert acc.next_statement_at == dt.datetime(2026, 5, 8, 22, 45, 20, tzinfo=dt.UTC)
+
+    def test_credit_zero_money_and_grace_preserved(self) -> None:
+        data = _credit_account_fixture()
+        for key in ("debtAmount", "currentMinimalPayment", "pastDueDebt"):
+            data[key] = {
+                "value": 0.0,
+                "currency": {"code": 643, "name": "RUB", "strCode": "643"},
+            }
+        data["gracePeriodLength"] = 0
+        acc = Account.from_api(data)
+        assert acc.debt is not None
+        assert acc.debt.amount == Decimal("0")
+        assert acc.minimum_payment is not None
+        assert acc.minimum_payment.amount == Decimal("0")
+        assert acc.past_due_debt is not None
+        assert acc.past_due_debt.amount == Decimal("0")
+        assert acc.grace_period_days == 0
+
+    def test_credit_money_with_null_value_is_none(self) -> None:
+        data = _credit_account_fixture()
+        for key in ("debtAmount", "currentMinimalPayment", "pastDueDebt"):
+            data[key] = {
+                "value": None,
+                "currency": {"code": 643, "name": "RUB", "strCode": "643"},
+            }
+        acc = Account.from_api(data)
+        assert acc.debt is None
+        assert acc.minimum_payment is None
+        assert acc.past_due_debt is None
+
+    def test_credit_fields_explicit_none_are_none(self) -> None:
+        data = _credit_account_fixture()
+        for key in (
+            "debtAmount",
+            "currentMinimalPayment",
+            "pastDueDebt",
+            "gracePeriodLength",
+            "lastStatementDate",
+            "nextStatementDate",
+        ):
+            data[key] = None
+        acc = Account.from_api(data)
+        assert acc.debt is None
+        assert acc.minimum_payment is None
+        assert acc.past_due_debt is None
+        assert acc.grace_period_days is None
+        assert acc.last_statement_at is None
+        assert acc.next_statement_at is None
+
+    def test_credit_card_and_unknown_types_preserved(self) -> None:
+        assert AccountType("CreditCard") is AccountType.CREDIT_CARD
+        data = _current_account_fixture()
+        data["accountType"] = "CustomType"
+        acc = Account.from_api(data)
+        assert acc.type == "CustomType"
+        assert not isinstance(acc.type, AccountType)
+
+    def test_credit_fields_default_to_none(self) -> None:
+        acc = Account.from_api(_current_account_fixture())
+        assert acc.debt is None
+        assert acc.minimum_payment is None
+        assert acc.past_due_debt is None
+        assert acc.grace_period_days is None
+        assert acc.last_statement_at is None
+        assert acc.next_statement_at is None
+
+    def test_positional_construction_keeps_raw_and_match_args(self) -> None:
+        assert Account.__match_args__ == (
+            "id",
+            "name",
+            "type",
+            "currency",
+            "balance",
+            "credit_limit",
+            "hidden",
+            "shared_by_me",
+            "created_at",
+            "loyalty",
+            "raw",
+        )
+        raw = {"id": "1111111111", "accountType": "Credit"}
+        acc = Account(
+            "1111111111",
+            "Credit",
+            AccountType.CREDIT,
+            None,
+            None,
+            None,
+            False,
+            False,
+            None,
+            None,
+            raw,
+        )
+        assert acc.raw == raw
+        assert acc.debt is None
+        assert acc.minimum_payment is None
+        assert acc.past_due_debt is None
+        assert acc.grace_period_days is None
+        assert acc.last_statement_at is None
+        assert acc.next_statement_at is None
 
 
 # =============================================================================

@@ -74,11 +74,16 @@ with TBankClient(storage=FileStorage("~/.tbank")) as client:
 - **Список счетов** через `client.accounts.list()` —
   `GET /v1/accounts_light`. Возвращает типизированные `Account` с
   балансом, валютой, кредитным лимитом, флагами видимости/совместного
-  доступа и описанием программы лояльности.
+  доступа и описанием программы лояльности. У кредитных счетов
+  дополнительно доступны `debt`, `minimum_payment`, `past_due_debt`
+  (тип `Money`), `grace_period_days` — длительность льготного периода
+  в днях, а не дата его окончания, — и `last_statement_at`/
+  `next_statement_at`, даты выписки в UTC. Если банк не передал поле,
+  его значение равно `None`.
 - **Поддержка всех типов счетов** банка: `Current`, `Saving`,
-  `CreditCard`, `Telecom`, `Deposit`, `Loan`, `SharedAccount`, плюс
-  `ExternalAccount` (привязанные карты других банков по open banking,
-  для них `balance is None`).
+  `CreditCard`, `Credit`, `Telecom`, `Deposit`, `Loan`,
+  `SharedAccount`, плюс `ExternalAccount` (привязанные карты других
+  банков по open banking, для них `balance is None`).
 - **Список операций** через `client.operations.list(account, start, end)` —
   `GET /v1/operations`. Возвращает типизированные `Operation` за
   произвольный период.
@@ -115,7 +120,7 @@ with TBankClient(storage=FileStorage("~/.tbank")) as client:
 - **Иерархия исключений** с конкретными подклассами для транспортных
   ошибок, HTTP-ответов, rate limit'а, истечения SSO-сессии, провала
   refresh'а и т.п. — можно ловить точечно.
-- **95 unit-тестов** покрывают парсеры моделей, fingerprint
+- **103 unit-теста** покрывают парсеры моделей, fingerprint
   (включая ground-truth для anti-DDoS hash), PKCE, storage,
   step-машину и cookie helpers.
 
