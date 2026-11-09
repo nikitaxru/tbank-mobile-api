@@ -29,6 +29,7 @@ class AccountType(StrEnum):
     CURRENT = "Current"
     SAVING = "Saving"
     CREDIT_CARD = "CreditCard"
+    CREDIT = "Credit"
     TELECOM = "Telecom"
     EXTERNAL_ACCOUNT = "ExternalAccount"
     DEPOSIT = "Deposit"
@@ -97,6 +98,12 @@ class Account:
     shared_by_me: bool
     created_at: datetime | None
     loyalty: Loyalty | None
+    debt: Money | None = field(default=None, kw_only=True)
+    minimum_payment: Money | None = field(default=None, kw_only=True)
+    past_due_debt: Money | None = field(default=None, kw_only=True)
+    grace_period_days: int | None = field(default=None, kw_only=True)
+    last_statement_at: datetime | None = field(default=None, kw_only=True)
+    next_statement_at: datetime | None = field(default=None, kw_only=True)
     raw: dict[str, Any] = field(default_factory=dict, repr=False, compare=False)
 
     @classmethod
@@ -119,8 +126,26 @@ class Account:
         if credit_limit_raw and credit_limit_raw.get("value") is not None:
             credit_limit = Money.from_api(credit_limit_raw)
 
+        debt_raw = data.get("debtAmount")
+        debt: Money | None = None
+        if debt_raw and debt_raw.get("value") is not None:
+            debt = Money.from_api(debt_raw)
+
+        minimum_payment_raw = data.get("currentMinimalPayment")
+        minimum_payment: Money | None = None
+        if minimum_payment_raw and minimum_payment_raw.get("value") is not None:
+            minimum_payment = Money.from_api(minimum_payment_raw)
+
+        past_due_debt_raw = data.get("pastDueDebt")
+        past_due_debt: Money | None = None
+        if past_due_debt_raw and past_due_debt_raw.get("value") is not None:
+            past_due_debt = Money.from_api(past_due_debt_raw)
+
         loyalty_raw = data.get("loyalty")
         loyalty = Loyalty.from_api(loyalty_raw) if loyalty_raw else None
+
+        grace_raw = data.get("gracePeriodLength")
+        grace_period_days = int(grace_raw) if grace_raw is not None else None
 
         return cls(
             id=str(data["id"]),
@@ -133,5 +158,11 @@ class Account:
             shared_by_me=bool(data.get("sharedByMeFlag", False)),
             created_at=parse_ms_timestamp(data.get("creationDate")),
             loyalty=loyalty,
+            debt=debt,
+            minimum_payment=minimum_payment,
+            past_due_debt=past_due_debt,
+            grace_period_days=grace_period_days,
+            last_statement_at=parse_ms_timestamp(data.get("lastStatementDate")),
+            next_statement_at=parse_ms_timestamp(data.get("nextStatementDate")),
             raw=dict(data),
         )
